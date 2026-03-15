@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型训练</title>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background: linear-gradient(to bottom, #e6f4ff, #99b3d6);
+        }
+
+        /* 导航栏样式 */
+        nav {
+            background-color: #333;
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        nav ul {
+            list-style-type: none;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        nav ul li {
+            cursor: pointer;
+            margin-left: 20px;
+            transition: color 0.3s ease;
+        }
+
+        nav ul li:hover {
+            color: #007BFF;
+        }
+
+        nav ul li:last-child {
+            position: relative;
+        }
+
+        nav ul li i {
+            margin-right: 5px;
+        }
+
+        /* 下拉菜单样式（个人中心） */
+      .dropdown {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 160px;
+            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+            z-index: 1;
+            border-radius: 4px;
+        }
+
+        nav ul li:last-child:hover.dropdown {
+            display: block;
+        }
+
+      .dropdown a {
+            color: black;
+            padding: 10px 15px;
+            text-decoration: none;
+            display: block;
+            transition: background-color 0.3s ease;
+        }
+
+      .dropdown a:hover {
+            background-color: #f1f1f1;
+        }
+
+        /* 主要内容容器样式 */
+      .main-container {
+            flex: 1;
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+        }
+
+  /* 左侧训练参数设置样式 */
+      .left-section,
+      .right-section {
+            width: 50%;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+      .form-group {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+      .form-group > div {
+            display: flex;
+            flex-direction: column;
+            margin-right: 10px;
+            min-width: calc((100% - 40px) / 3);
+        }
+
+      .form-group input,
+      .form-group select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 8px 12px;
+            width: 190px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+      .form-group input:hover,
+      .form-group select:hover {
+            border-color: #007bff;
+            background-color: #f0f7ff;
+            box-shadow: 0 0 6px rgba(0, 123, 255, 0.1);
+        }
+
+      .form-group input:focus,
+      .form-group select:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 6px rgba(0, 123, 255, 0.2);
+        }
+
+      .form-group select {
+            background-image: linear-gradient(45deg, transparent 50%, #666 50%),
+                              linear-gradient(135deg, #666 50%, transparent 50%);
+            background-position: calc(100% - 20px) calc(1em + 2px), calc(100% - 15px) calc(1em + 2px);
+            background-size: 5px 5px, 5px 5px;
+            background-repeat: no-repeat;
+            cursor: pointer;
+        }
+
+      .form-group label {
+            font-weight: 600;
+            font-size: 15px;
+            color: #444;
+            margin-bottom: 4px;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: #007BFF; /* 开始训练按钮默认颜色 */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3; /* 开始训练按钮悬停颜色 */
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        /* 右侧模型训练情况样式 */
+      /* 右侧模型训练情况样式 */
+        .right-section {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        h2 {
+            color: #007BFF; /* 标题颜色设置为蓝色，和图片一致 */
+            margin-bottom: 10px;
+        }
+
+      .right-section p {
+            margin-bottom: 5px;
+        }
+
+      .right-section p span {
+            color: #007BFF; /* 让状态文字颜色为蓝色 */
+        }
+      .right-section button {
+            display: block;
+            width: 100%;
+        }
+
+      .progress-bar {
+            width: 80%;
+            background-color: #e0e0e0;
+            height: 20px; /* 调整进度条高度 */
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 10px;
+            margin-top: 10px;
+        }
+
+      .progress {
+            width: 0%;
+            background-color: #007BFF; /* 进度条已完成部分颜色设置为蓝色 */
+            height: 100%;
+
+        }
+      .progress-info {
+        display: flex;
+        align-items: center; /* 垂直居中对齐子元素 */
+        margin-bottom: 10px;
+        margin-top: 10px;
+    }
+
+      .left-section button {
+            display: block;
+            width: 100%;
+        }
+
+
+        /* 结果展示图片样式 */
+      .result-display {
+            margin-top: 10px;
+        }
+
+      .result-display img {
+            width: 90%;
+            height: auto;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 导航栏 -->
+    <nav>
+        <ul>
+            <li><i class="fas fa-home"></i>首页</li>
+            <li><i class="fas fa-chart-line"></i>历史记录</li>
+            <li><i class="fas fa-lightbulb"></i>使用指南</li>
+            <li><i class="fas fa-user"></i>个人中心
+                <div class="dropdown">
+                    <a href="#">我的资料</a>
+                    <a href="#">修改密码</a>
+                    <a href="#">退出登录</a>
+                </div>
+            </li>
+        </ul>
+    </nav>
+    <!-- 主要内容 -->
+    <div class="main-container">
+        <!-- 左侧：训练参数设置 -->
+        <div class="left-section">
+            <h2>训练参数设置</h2>
+            <div class="form-group">
+                <div>
+                    <label for="dataset">数据集</label>
+                    <select id="dataset" name="dataset">
+                        <option value="mnist">MNIST</option>
+                        <option value="cyms">CIFAR - 10</option>
+                        <option value="fmnist">Fashion-MNIST</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="model">模型</label>
+                    <select id="model" name="model">
+                        <option value="lenet">LeNet</option>
+                        <option value="resnet18">ResNet18</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="dp_level">差分隐私策略</label>
+                    <select id="dp_level" name="dp_level">
+                        <option value="low">HFL-LNADP</option>
+                        <option value="medium">整体加噪</option>
+                        <option value="high">无</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <div>
+                    <label for="avg">聚合策略</label>
+                    <select id="avg" name="avg">
+                        <option value="0">FedAvg</option>
+                        <option value="1">FedAdp</option>
+                        <option value="2">HFL-LWA</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="iid">客户端数据分布</label>
+                    <select id="iid" name="iid">
+                    <1>
+                        <option value="1">IID</option>
+                        <option value="0">等量非IID</option>
+                        <option value="-1">非等量Non-IID</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="edgeiid">边缘域内客户端分布</label>
+                    <select id="edgeiid" name="edgeiid">
+                        <option value="1">随机分布</option>
+                        <option value="0">保持边缘域间数据IID</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <div>
+                    <label for="num_communication">全局聚合轮数</label>
+                    <input type="number" id="num_communication" name="num_communication" value="50">
+                </div>
+                <div>
+                    <label for="num_local_update">本地更新频次</label>
+                    <input type="number" id="num_local_update" name="num_local_update" value="5">
+                </div>
+                <div>
+                    <label for="num_edge_aggregation">边缘聚合频次</label>
+                    <input type="number" id="num_edge_aggregation" name="num_edge_aggregation" value="3">
+                </div>
+            </div>
+            <div class="form-group">
+                <div>
+                    <label for="num_clients">客户端数量</label>
+                    <input type="number" id="num_clients" name="num_clients" value="50">
+                </div>
+                <div>
+                    <label for="num_edges">边缘服务器数量</label>
+                    <input type="number" id="num_edges" name="num_edges" value="5">
+                </div>
+                <div>
+                    <label for="lr">学习率</label>
+                    <input type="number" id="lr" name="lr" step="0.001" value="0.005">
+                </div>
+            </div>
+            <div class="form-group">
+                <div>
+                    <label for="batch_size">批量大小</label>
+                    <input type="number" id="batch_size" name="batch_size" value="20">
+                </div>
+                <div>
+                    <label for="frac">客户端参与比例</label>
+                    <input type="number" id="frac" name="frac" step="0.01" value="1">
+                </div>
+                <div>
+                    <label for="seed">随机种子</label>
+                    <input type="number" id="seed" name="seed" value="1">
+                </div>
+            </div>
+            <button type="button" onclick="window.location.href='/start_training'">开始训练</button>
+            <!-- hierfavg.py的hierfavg函数 -->
+        </div>
+        <!-- 右侧：模型训练情况 -->
+        <div class="right-section">
+            <h2>模型训练情况</h2>
+            <div>
+                <p>模型训练状态：<span id="status">已完成</span></p>
+                <div class="progress-info"> <!-- 添加新的类名 -->
+                    <p>训练进度：<span id="progress">0%</span></p>
+                    <div class="progress-bar">
+                        <div class="progress" id="progressBar"></div>
+                    </div>
+                </div>
+            </div>
+<!--              结果展示区域-->
+            <div class="result-display">
+                <p>结果展示：</p>
+                <img src="http://127.0.0.1:5000/generate_image" alt="准确率曲线图片" />
+            </div>
+            <button id="saveModel" type="button" >保存模型参数</button>
+<!--                <div style="display: flex; gap: 10px; margin-top: 10px;">-->
+<!--                <button id="pauseTraining" type="button" style="flex: 1; background-color: #FFA500;">暂停训练</button>-->
+<!--                <button id="stopTraining" type="button" style="flex: 1; background-color: #DC3545;">终止训练</button>-->
+</div>
+        </div>
+    </div>
+
+    <script src="https://kit.fontawesome.com/33b3cdea20.js" crossorigin="anonymous"></script>
+
+<!--    <script>-->
+<!--            const targetProgress = 30;-->
+<!--            $('#progress').text(targetProgress + '%');-->
+<!--            $('#progressBar').css('width', targetProgress + '%');-->
+<!--&lt;!&ndash;        let trainingStatus = 'normal';&ndash;&gt;-->
+<!--&lt;!&ndash;        let trainingProgress = 30;&ndash;&gt;-->
+<!--&lt;!&ndash;        let progressInterval; // 声明定时器变量&ndash;&gt;-->
+
+<!--&lt;!&ndash;        function updateProgress(newProgress) {&ndash;&gt;-->
+<!--&lt;!&ndash;            trainingProgress = newProgress;&ndash;&gt;-->
+<!--&lt;!&ndash;            const progressBar = document.getElementById('progressBar');&ndash;&gt;-->
+<!--&lt;!&ndash;            progressBar.style.width = newProgress + '%';&ndash;&gt;-->
+<!--&lt;!&ndash;            document.getElementById('progress').textContent = newProgress + '%';&ndash;&gt;-->
+<!--&lt;!&ndash;            document.getElementById('saveModel').disabled = newProgress < 100 || trainingStatus!== 'normal';&ndash;&gt;-->
+<!--&lt;!&ndash;        }&ndash;&gt;-->
+
+<!--&lt;!&ndash;        function startTraining() {&ndash;&gt;-->
+<!--&lt;!&ndash;            const formGroups = document.querySelectorAll('.form-group');&ndash;&gt;-->
+<!--&lt;!&ndash;            const data = {};&ndash;&gt;-->
+<!--&lt;!&ndash;            formGroups.forEach((group) => {&ndash;&gt;-->
+<!--&lt;!&ndash;                const subGroups = group.querySelectorAll('div');&ndash;&gt;-->
+<!--&lt;!&ndash;                subGroups.forEach((subGroup) => {&ndash;&gt;-->
+<!--&lt;!&ndash;                    const label = subGroup.querySelector('label');&ndash;&gt;-->
+<!--&lt;!&ndash;                    const input = subGroup.querySelector('input, select');&ndash;&gt;-->
+<!--&lt;!&ndash;                    data[label.textContent] = input.value;&ndash;&gt;-->
+<!--&lt;!&ndash;                });&ndash;&gt;-->
+<!--&lt;!&ndash;            });&ndash;&gt;-->
+
+<!--&lt;!&ndash;            // 发送数据到后端&ndash;&gt;-->
+<!--&lt;!&ndash;            fetch('/start-training', {&ndash;&gt;-->
+<!--&lt;!&ndash;                method: 'POST',&ndash;&gt;-->
+<!--&lt;!&ndash;                headers: {&ndash;&gt;-->
+<!--&lt;!&ndash;                    'Content-Type': 'application/json'&ndash;&gt;-->
+<!--&lt;!&ndash;                },&ndash;&gt;-->
+<!--&lt;!&ndash;                body: JSON.stringify(data)&ndash;&gt;-->
+<!--&lt;!&ndash;            })&ndash;&gt;-->
+<!--&lt;!&ndash;           .then(response => response.json())&ndash;&gt;-->
+<!--&lt;!&ndash;           .then(result => {&ndash;&gt;-->
+<!--&lt;!&ndash;                if (result.status ==='started') {&ndash;&gt;-->
+<!--&lt;!&ndash;                    trainingStatus ='started';&ndash;&gt;-->
+<!--&lt;!&ndash;                    document.getElementById('status').textContent = '进行中';&ndash;&gt;-->
+<!--&lt;!&ndash;                    // 清除可能存在的旧定时器&ndash;&gt;-->
+<!--&lt;!&ndash;                    if (progressInterval) {&ndash;&gt;-->
+<!--&lt;!&ndash;                        clearInterval(progressInterval);&ndash;&gt;-->
+<!--&lt;!&ndash;                    }&ndash;&gt;-->
+<!--&lt;!&ndash;                    // 启动新的定时器，每隔500毫秒增加2进度&ndash;&gt;-->
+<!--&lt;!&ndash;                    progressInterval = setInterval(() => {&ndash;&gt;-->
+<!--&lt;!&ndash;                        if (trainingProgress < 100) {&ndash;&gt;-->
+<!--&lt;!&ndash;                            updateProgress(trainingProgress + 2);&ndash;&gt;-->
+<!--&lt;!&ndash;                        } else {&ndash;&gt;-->
+<!--&lt;!&ndash;                            clearInterval(progressInterval);&ndash;&gt;-->
+<!--&lt;!&ndash;                            trainingStatus = 'normal';&ndash;&gt;-->
+<!--&lt;!&ndash;                            document.getElementById('status').textContent = '完成';&ndash;&gt;-->
+<!--&lt;!&ndash;                        }&ndash;&gt;-->
+<!--&lt;!&ndash;                    }, 5);&ndash;&gt;-->
+<!--&lt;!&ndash;                } else {&ndash;&gt;-->
+<!--&lt;!&ndash;                    alert(result.message);&ndash;&gt;-->
+<!--&lt;!&ndash;                }&ndash;&gt;-->
+<!--&lt;!&ndash;            })&ndash;&gt;-->
+<!--&lt;!&ndash;           .catch(error => {&ndash;&gt;-->
+<!--&lt;!&ndash;                console.error('Error:', error);&ndash;&gt;-->
+<!--&lt;!&ndash;            });&ndash;&gt;-->
+<!--&lt;!&ndash;        }&ndash;&gt;-->
+<!--    </script>-->
+<script>
+    document.getElementById('progress').innerText = '100%';
+    document.getElementById('progressBar').style.width = '100%';
+</script>
+</body>
+
+</html>

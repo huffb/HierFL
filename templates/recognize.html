@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>模型训练</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Source Han Serif', serif;
+            background: linear-gradient(to bottom, #e6f4ff, #99b3d6);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 导航栏样式 */
+        nav {
+            background-color: #333;
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        nav ul {
+            list-style-type: none;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        nav ul li {
+            cursor: pointer;
+            margin-left: 20px;
+            transition: color 0.3s ease;
+        }
+
+        nav ul li:hover {
+            color: #007BFF;
+        }
+
+        nav ul li:last-child {
+            position: relative;
+        }
+
+        nav ul li i {
+            margin-right: 5px;
+        }
+
+      .main-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            padding: 30px 40px;
+            flex: 1;
+        }
+
+      .upload-section,
+      .result-section {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+      .upload-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+
+        }
+
+      .upload-areas {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+      .manual-upload,
+      .drag-upload {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+      .drop-area {
+            border: 2px dashed #007BFF;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            color: #555;
+        }
+
+      .drop-area.dragover {
+            background-color: #e0f0ff;
+            box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
+        }
+
+        button.upload-btn {
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 15px;
+            margin-top:25px
+
+        }
+
+        button.upload-btn:hover {
+            background-color: #0056b3;
+        }
+
+        button#recognizeButton {
+            background-color: #cccccc;
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: not-allowed;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+
+      .progress-bar {
+            height: 6px;
+            background-color: #007BFF;
+            border-radius: 4px;
+            width: 0;
+            transition: width 0.4s ease;
+            margin-top: 10px;
+        }
+
+      .result-section h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+      .result-section p {
+            font-size: 18px;
+            text-align: center;
+            color: #333;
+            min-height: 60px;
+        }
+
+        #uploadStatus {
+            color: green;
+            margin-top: 10px;
+        }
+
+      .manual-upload-inner {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+      .manual-upload-inner input {
+        font-size:15px
+
+      }
+    select:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 6px rgba(0, 123, 255, 0.2);
+        }
+
+      select {
+            background-image: linear-gradient(45deg, transparent 50%, #666 50%),
+                              linear-gradient(135deg, #666 50%, transparent 50%);
+            background-position: calc(100% - 20px) calc(1em + 2px), calc(100% - 15px) calc(1em + 2px);
+            background-size: 5px 5px, 5px 5px;
+            background-repeat: no-repeat;
+            cursor: pointer;
+        }
+
+       label {
+            font-weight: 600;
+            font-size: 18px;
+            color: #444;
+            margin-bottom: 4px;
+        }
+        select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 8px 12px;
+            width: 190px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        select:hover {
+            border-color: #007bff;
+            background-color: #f0f7ff;
+            box-shadow: 0 0 6px rgba(0, 123, 255, 0.1);
+        }
+
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" crossorigin="anonymous" />
+</head>
+
+<body>
+    <nav>
+        <ul>
+            <li><i class="fas fa-home"></i>首页</li>
+            <li><i class="fas fa-chart-line"></i>历史记录</li>
+            <li><i class="fas fa-lightbulb"></i>使用指南</li>
+            <li><i class="fas fa-user"></i>个人中心</li>
+        </ul>
+    </nav>
+
+    <div class="main-container">
+        <div class="upload-section">
+            <h2>上传文件</h2>
+            <div class="upload-areas">
+                <div class="manual-upload">
+<!--                    <h3>手动选择上传</h3>-->
+                    <div class="manual-upload-inner">
+                        <input type="file" id="fileInput" accept="image/*" >
+                        <button class="upload-btn" onclick="uploadFile(document.getElementById('fileInput').files[0], 'progressBarManual')">上传文件</button>
+                    </div>
+                    <div class="progress-bar" id="progressBarManual"></div>
+                </div>
+
+                <div class="drag-upload">
+<!--                    <h3>拖拽上传</h3>-->
+                    <div id="dropArea" class="drop-area">
+                        <i class="fa-solid fa-cloud-arrow-up fa-3x"></i>
+                        <p>将文件拖拽到此处上传</p>
+                    </div>
+                    <div class="progress-bar" id="progressBarDrag"></div>
+                    <p id="uploadStatus"></p>
+                </div>
+                <label for="datasetType">请选择图像所属的数据集类型：</label>
+                <select id="datasetType" >
+                    <option value="MNIST">MNIST</option>
+                    <option value="FMNIST">FMNIST</option>
+                    <option value="CIFAR10">CIFAR10</option>
+                </select>
+            </div>
+            <button id="recognizeButton" onclick="startRecognition()">开始识别</button>
+            <div id="recognitionResult" style="margin-top: 10px; color: green;"></div>
+        </div>
+
+        <div class="result-section">
+            <h2>识别结果</h2>
+            <img src="" alt="图像识别结果" />
+            <button id="recognizeButton2" onclick="onclick=saveImage()"
+                style="background-color: #007BFF; color: #fff; border: none; padding: 12px 24px;
+                       border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 20px;">
+                保存
+            </button>
+            <button id="recognizeButton3"   onclick="downloadResultJSON()"
+                style="background-color: #28a745; color: white; padding: 12px 24px;
+                       border: none; border-radius: 6px; cursor: pointer; font-size: 16px; margin-top: 20px;">
+                下载识别结果
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let uploadedFilePath;
+
+        function uploadFile(file, progressBarId = null) {
+            if (file) {
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/upload', true);
+
+                if (progressBarId) {
+                    xhr.upload.onprogress = function (e) {
+                        if (e.lengthComputable) {
+                            const percent = (e.loaded / e.total) * 100;
+                            document.getElementById(progressBarId).style.width = percent + '%';
+                        }
+                    };
+                }
+
+                xhr.onload = function () {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.status ==='success') {
+                        uploadedFilePath = data.file_path;
+                        document.getElementById('uploadStatus').textContent = `文件 ${file.name} 上传成功`;
+                        document.getElementById('recognizeButton').disabled = false;
+                        document.getElementById('recognizeButton').style.backgroundColor = '#007BFF';
+                        document.getElementById('recognizeButton').style.cursor = 'pointer';
+                    } else {
+                        document.getElementById('uploadStatus').textContent = '上传失败';
+                    }
+                };
+
+                xhr.onerror = function () {
+                    document.getElementById('uploadStatus').textContent = '上传失败';
+                };
+
+                xhr.send(formData);
+            }
+        }
+
+        function startRecognition() {
+            if (uploadedFilePath) {
+                const data = { filepath: uploadedFilePath };
+                fetch('/recognize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+              .then(response => response.json())
+              .then(data => {
+                    if (data.status ==='success') {
+                        document.getElementById('recognitionResult').textContent = `识别成功: ${data.result}`;
+                        const img = document.querySelector('.result-section img');
+                        setTimeout(() => {
+                                const encodedPath = encodeURIComponent(uploadedFilePath);
+                                const newSrc = `http://127.0.0.1:5000/recognize_img?filepath=${encodedPath}&t=${new Date().getTime()}`;
+                                img.style.width = '500px';
+                                img.style.height = 'auto';  // 保持纵横比
+                                img.src = newSrc;
+                            }, 300);
+                    } else {
+                        document.getElementById('recognitionResult').textContent = `识别失败: ${data.message}`;
+                    }
+                })
+              .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('recognitionResult').textContent = '识别失败';
+                });
+            }
+        }
+
+        function downloadResultJSON() {
+            const url = 'http://127.0.0.1:5000/download_result';
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'recognized_result.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+
+        const dropArea = document.getElementById('dropArea');
+
+        function saveImage() {
+            const img = document.querySelector('.result-section img');
+            if (!img || !img.src) {
+                alert("当前没有图片可保存");
+                return;
+            }
+            // 创建一个a标签，设置href为图片src，下载文件名
+            const a = document.createElement('a');
+            a.href = img.src;
+            a.download = 'recognized_image.jpg'; // 你可以根据需要改名
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.classList.add('dragover');
+        });
+
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.classList.remove('dragover');
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                uploadFile(file, 'progressBarDrag');
+            }
+        });
+    </script>
+    <script src="https://kit.fontawesome.com/33b3cdea20.js" crossorigin="anonymous"></script>
+</body>
+
+</html>

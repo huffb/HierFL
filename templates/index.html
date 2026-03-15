@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分层联邦学习系统优化</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css"
+        integrity="sha384-GJzZqFGwb1QTTN6wy59ffF1BuGJpLSa9DkKMp0DgiMDm4iYMj70gZWKYbI706tWS" crossorigin="anonymous">
+    <script src="https://kit.fontawesome.com/33b3cdea20.js" crossorigin="anonymous">
+    </script>
+    <style>
+        /* 主题颜色 */
+        :root {
+            --title-color: #003366;
+            --background-color: linear-gradient(to right, #e0eafc, #cfdef3);
+        }
+
+        /* 背景样式 */
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to bottom, #e6f4ff, #99b3d6);
+            height: 100vh;
+            display: block;
+            justify-content: center;
+            align-items: center;
+        }
+
+        nav {
+            /* 调整导航栏背景色，使其更浅且透明度降低 */
+            background-color: #333;
+            color: white;
+            padding: 15px 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        nav ul {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            text-align: right;
+        }
+
+        nav ul li {
+            display: inline-block;
+            margin: 0 15px;
+        }
+        nav ul li i {
+            margin-right: 5px;
+        }
+        nav ul li a {
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+        }
+
+        nav ul li a:hover {
+            text-decoration: underline;
+        }
+
+      .container {
+            text-align: center;
+        }
+
+        h3 {
+            color: var(--title-color);
+            font-weight: bold;
+        }
+
+        /* 卡片样式 */
+      .split-container {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+      .split-item {
+            width: 40%;
+            padding: 30px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 图标 */
+      .federated-learning-icon {
+            color: #003366;
+            font-size: 70px;
+            margin-bottom: 20px;
+        }
+
+        /* 按钮样式 */
+      .btn-primary {
+            background-color: var(--title-color);
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            border-radius: 5px;
+        }
+
+      .btn-primary:hover {
+            background-color: #002244;
+        }
+
+      .custom-h2 {
+            font-size: 20px;
+            color: #cccccc;
+            margin-top: 10px; /* 增大与上方元素的间距 */
+            margin-bottom: 30px; /* 增大与下方元素的间距 */
+        }
+
+      .custom-h1 {
+            font-size: 50px;
+            letter-spacing: 2px;
+            font-weight: bold;
+        }
+
+        /* 响应式优化 */
+        @media (max-width: 768px) {
+          .split-container {
+                flex-direction: column;
+                align-items: center;
+            }
+          .split-item {
+                width: 80%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><i class="fas fa-lightbulb"></i>使用指南
+            <li><i class="fas fa-user"></i>个人中心
+
+        </ul>
+    </nav>
+    <div class="container">
+        <div class="jumbotron bg-transparent">
+            <h1 class="custom-h1">基于加权聚合和差分隐私的分层联邦学习系统</h1>
+        </div>
+        <div class="split-container">
+            <!-- 模型训练 -->
+            <div class="split-item">
+                <i class="fas fa-network-wired federated-learning-icon"></i>
+                <h2 class="custom-h2">定制训练模型、数据集和参数开始模型训练</h2>
+                <a href="{{ url_for('train') }}" class="btn btn-primary">模型训练</a>
+            </div>
+            <!-- 图像识别 -->
+            <div class="split-item">
+                <i class="fas fa-eye federated-learning-icon"></i>
+                <h2 class="custom-h2">上传本地图像开始图像识别分类</h2>
+                <a href="{{ url_for('recognize') }}" class="btn btn-primary">图像识别</a>
+            </div>
+        </div>
+    </div>
+    <script src="https://kit.fontawesome.com/33b3cdea20.js" crossorigin="anonymous"></script>
+</body>
+</html>

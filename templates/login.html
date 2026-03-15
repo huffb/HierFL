@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分层联邦学习系统性能优化研究</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom, #e6f4ff, #99b3d6);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+      .title {
+            font-size: 48px; /* 增大字体大小 */
+            font-weight: bold;
+            margin-bottom: 70px; /* 增大与登录框的间距 */
+            color: #000;
+            letter-spacing: 5px; /* 增加字符间距 */
+        }
+
+        form {
+            background-color: white;
+            border-radius: 12px; /* 增大圆角半径 */
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15); /* 调整阴影效果 */
+            padding: 30px 50px; /* 增加表单内边距 */
+            width: 450px; /* 适当增加表单宽度 */
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 30px; /* 增大与输入框的间距 */
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 12px; /* 增加输入框内边距 */
+            margin-bottom: 20px; /* 增大输入框之间的间距 */
+            border: 1px solid #ccc;
+            border-radius: 8px; /* 增大输入框圆角半径 */
+            font-size: 16px; /* 增大输入框字体大小 */
+        }
+
+        input[type="submit"] {
+            background-color: #007BFF;
+            color: white;
+            padding: 12px 20px; /* 增加按钮内边距 */
+            border: none;
+            border-radius: 20px; /* 增大按钮圆角半径 */
+            cursor: pointer;
+            width: 100%;
+            font-size: 18px; /* 增大按钮字体大小 */
+        }
+
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+
+        p {
+            margin-top: 15px; /* 增大与按钮的间距 */
+            font-size: 14px;
+        }
+
+        p a {
+            color: #007BFF;
+            text-decoration: none;
+        }
+
+        p a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="title">基于加权聚合和差分隐私的分层联邦学习系统</div>
+    <form action="{{ url_for('login') }}" method="post">
+        <h2>身份认证</h2>
+        <input type="text" placeholder="用户名" name="username">
+        <input type="password" placeholder="密码" name="password">
+        <input type="submit" value="登录">
+        <p>没有账号？ <a href="#">注册</a></p>
+    </form>
+</body>
+
+</html>
