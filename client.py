@@ -82,8 +82,8 @@ class Client():
             sensitivity = 2 * lr * clip / dataset_size
             state_dict = self.model.shared_layers.state_dict()
             n = args.num_communication * args.num_edge_aggregation
-            Model_Noise_Add(delta=args.client_delta, sepsilon=args.client_sepsilon / n,
-                            depsilon=args.client_depsilon / n,
+            Model_Noise_Add(delta=args.client_delta, sepsilon=args.client_shared_epsilon / n,
+                            depsilon=args.client_private_epsilon / n,
                             model=args.model, w=state_dict.items(), sensitivity=sensitivity)
         # self.model.shared_layers.load_state_dict(w)
         # print(self.model.shared_layers.state_dict().size())

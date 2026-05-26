@@ -27,6 +27,9 @@ def override_args(frontend_params):
         if dp_level == 'high':
             args.client_add_noise = 0
             args.edge_add_noise = 0
+        elif dp_level == 'medium':
+            args.client_add_noise = 0
+            args.edge_add_noise = 1
         else:
             args.client_add_noise = 1
             args.edge_add_noise = 1

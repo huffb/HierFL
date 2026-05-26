@@ -94,7 +94,7 @@ class MTL_Model(object):
         # 2.9add SDG
         torch.nn.utils.clip_grad_norm_(self.shared_layers.parameters(), clip)
         #2.13 DP-SDG
-        if args.DP_SDG == 1:
+        if args.dp_sgd == 1:
             # dataset_size = len(self.train_loader.dataset)
             noise_stddev = self.calculate_noise_stddev(clip,args,dataset_size=dataset_size)
             for param in self.shared_layers.parameters():
@@ -113,7 +113,7 @@ class MTL_Model(object):
         """
         n = args.num_communication * args.num_edge_aggregation
         lr = args.lr  # 学习率
-        epsilon = args.client_depsilon/n  # 隐私预算ε
+        epsilon = args.client_private_epsilon/n  # 隐私预算ε
         delta = args.client_delta/n # 隐私参数δ
 
         # 计算灵敏度：这里是基于梯度裁剪和学习率的估算

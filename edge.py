@@ -61,7 +61,7 @@ class Edge():
         received_dict = [dict for dict in self.receiver_buffer.values()]
         sample_num = [snum for snum in self.sample_registration.values()]
         self.noised_state_dict = add_differential_privacy_noise(w=received_dict,
-                                                s_num=sample_num,epsilon=args.client_epsilon,delta=args.client_delta,
+                                                s_num=sample_num,epsilon=args.client_private_epsilon,delta=args.client_delta,
                                                 num_clients=sample_num)
     def aggregate(self, args):
         """
@@ -93,7 +93,7 @@ class Edge():
         return None
 
     def send_to_cloudserver(self, cloud,args):
-        if args.client_add_noise == 1:
+        if args.edge_add_noise == 1:
             print("222222222222222222222")
             sample_num = [snum for snum in self.sample_registration.values()]
             lr = args.lr
@@ -102,8 +102,8 @@ class Edge():
             sensitivity = 2 * lr * clip / dataset_size
             state_dict = self.shared_state_dict
             n = args.num_edge_aggregation
-            Model_Noise_Add(delta=args.client_delta, sepsilon=args.edge_sepsilon / n,
-                            depsilon=args.edge_depsilon / n,
+            Model_Noise_Add(delta=args.edge_delta, sepsilon=args.edge_shared_epsilon / n,
+                            depsilon=args.edge_private_epsilon / n,
                             model=args.model, w=state_dict.items(), sensitivity=sensitivity)
         cloud.receive_from_edge(edge_id=self.id,
                                 eshared_state_dict=copy.deepcopy(

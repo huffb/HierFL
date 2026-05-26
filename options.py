@@ -194,20 +194,20 @@ def args_parser():
         '--client_sepsilon',
         type=float,
         default=3,
-        help='Mean (mu) of the Gaussian noise. Defaults to 0.0.'
+        help='DP epsilon for client shared/conv layers.'
     )
     parser.add_argument(
         '--client_depsilon', #客户端深层隐私预算
         type=float,
         default=5,
-        help='Mean (mu) of the Gaussian noise. Defaults to 0.0.'
+        help='DP epsilon for client dense/private layers.'
     )
     # 添加高斯噪声的标准差参数，默认1.0
     parser.add_argument(
         '--client_delta',
         type=float,
         default=1e-9,
-        help='Standard deviation  of the Gaussian noise.'
+        help='DP delta for client-side Gaussian noise.'
     )
     parser.add_argument(
         '--edge_add_noise',#边缘噪声添加选择
@@ -219,20 +219,20 @@ def args_parser():
         '--edge_sepsilon',
         type=float,
         default=0.01,
-        help='Mean (mu) of the Gaussian noise. Defaults to 0.0.'
+        help='DP epsilon for edge shared/conv layers.'
     )
     parser.add_argument(
         '--edge_depsilon',
         type=float,
         default=0.05,
-        help='Mean (mu) of the Gaussian noise. Defaults to 0.0.'
+        help='DP epsilon for edge dense/private layers.'
     )
     # 添加高斯噪声的标准差参数，默认为1.0
     parser.add_argument(
         '--edge_delta',
         type=float,
         default=1e-6,
-        help='Standard deviation  of the Gaussian noise.'
+        help='DP delta for edge-side Gaussian noise.'
     )
     parser.add_argument(
         '--SGD_clip',
@@ -248,4 +248,9 @@ def args_parser():
     )
     args = parser.parse_args()
     args.cuda = torch.cuda.is_available()
+    args.client_shared_epsilon = args.client_sepsilon
+    args.client_private_epsilon = args.client_depsilon
+    args.edge_shared_epsilon = args.edge_sepsilon
+    args.edge_private_epsilon = args.edge_depsilon
+    args.dp_sgd = args.DP_SDG
     return args

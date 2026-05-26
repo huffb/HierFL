@@ -39,7 +39,7 @@ class Cloud():
         received_dict = [dict for dict in self.receiver_buffer.values()]
         sample_num = [snum for snum in self.sample_registration.values()]
         self.noised_state_dict = add_differential_privacy_noise(w=received_dict,s_num=sample_num,
-                                                                epsilon=args.edge_epsilon, delta=args.edge_delta,
+                                                                epsilon=args.edge_private_epsilon, delta=args.edge_delta,
                                                                 num_clients=sample_num)
         # print(self.noised_state_dict)
     def aggregate(self, args):
