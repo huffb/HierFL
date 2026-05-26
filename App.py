@@ -29,7 +29,6 @@ MODELS_DIR = ARTIFACTS_DIR / "models"
 METRICS_DIR = ARTIFACTS_DIR / "metrics"
 RESULTS_DIR = ARTIFACTS_DIR / "results"
 UPLOADS_DIR = PROJECT_ROOT / "uploads"
-DEFAULT_MODEL_PATH = MODELS_DIR / "trained_model.pth"
 RECOGNIZED_RESULT_PATH = RESULTS_DIR / "recognized_result.json"
 
 device = torch.device('cpu')
@@ -48,24 +47,59 @@ users = {
 }
 
 
+def get_training_model_path():
+    model_path = training_state.get("model_path")
+    if model_path:
+        path = Path(model_path)
+        if path.exists():
+            return path
+
+    if not MODELS_DIR.exists():
+        return None
+
+    model_files = sorted(MODELS_DIR.glob("*.pth"), key=lambda path: path.stat().st_mtime)
+    if not model_files:
+        return None
+    return model_files[-1]
+
+
+def get_training_metrics_path():
+    metrics_path = training_state.get("metrics_path")
+    if metrics_path:
+        path = Path(metrics_path)
+        if path.exists():
+            return path
+
+    if not METRICS_DIR.exists():
+        return None
+
+    metric_files = sorted(
+        METRICS_DIR.glob("*_training_metrics.xlsx"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    if not metric_files:
+        return None
+    return metric_files[-1]
+
+
 def load_inference_model():
-    if not DEFAULT_MODEL_PATH.exists():
+    model_path = get_training_model_path()
+    if model_path is None:
         return None
 
     inference_model = mnist_lenet(input_channels=1, output_channels=10)
-    inference_model.load_state_dict(torch.load(DEFAULT_MODEL_PATH, map_location=device))
+    inference_model.load_state_dict(torch.load(model_path, map_location=device))
     inference_model.eval()
     return inference_model
 
 
-def get_latest_metrics_path():
-    if not METRICS_DIR.exists():
-        return None
-
-    metric_files = sorted(METRICS_DIR.glob("*_training_metrics.xlsx"), key=lambda path: path.stat().st_mtime)
-    if not metric_files:
-        return None
-    return metric_files[-1]
+def run_training_task(args):
+    try:
+        HierFAVG(args)
+    except Exception as exc:
+        training_state["status"] = "failed"
+        training_state["error"] = str(exc)
+        print(f"Training failed: {exc}")
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -106,33 +140,44 @@ def train():
 
 @app.route('/start_training', methods=['POST'])
 def start_training():
+    if training_state.get("status") == "running":
+        return jsonify({"status": "running", "message": "A training job is already in progress."}), 409
+
     frontend_data = request.get_json()
     print("Received data:", frontend_data)
     args = override_args(frontend_data)
     print(args)
+
+    training_state["status"] = "running"
     training_state["progress"] = 0
-    training_thread = threading.Thread(target=HierFAVG, args=(args,))
+    training_state["error"] = None
+    training_state["run_name"] = None
+    training_state["model_path"] = None
+    training_state["metrics_path"] = None
+
+    training_thread = threading.Thread(target=run_training_task, args=(args,), daemon=True)
     training_thread.start()
     return jsonify({"status": "started"})
 
 
 @app.route('/get_progress')
 def get_progress():
-    return jsonify({"progress": training_state["progress"]})
+    return jsonify(training_state)
 
 
 @app.route('/download_model', methods=['GET'])
 def download_model():
-    if DEFAULT_MODEL_PATH.exists():
-        return send_file(DEFAULT_MODEL_PATH, as_attachment=True)
-    return {"error": "模型文件不存在"}, 404
+    model_path = get_training_model_path()
+    if model_path is None:
+        return {"error": "Model file does not exist."}, 404
+    return send_file(model_path, as_attachment=True)
 
 
 @app.route('/generate_image')
 def generate_temp_image():
-    metrics_path = get_latest_metrics_path()
+    metrics_path = get_training_metrics_path()
     if metrics_path is None:
-        return {"error": "训练结果文件不存在"}, 404
+        return {"error": "Training metrics file does not exist."}, 404
 
     df = pd.read_excel(metrics_path)
     accuracy_data = df['Acc'].tolist()
@@ -149,9 +194,9 @@ def generate_temp_image():
     axes[0].set_xticks(np.arange(1, len(accuracy_percentage) + 1, 5))
     axes[0].set_yticks(np.arange(0, 101, 10))
     axes[0].plot(x, accuracy_percentage, marker='o', linestyle='-')
-    axes[0].set_xlabel('全局聚合轮次', fontsize=20)
-    axes[0].set_ylabel('准确率(%)', fontsize=20)
-    axes[0].set_title('模型准确率曲线', fontsize=20)
+    axes[0].set_xlabel('Global rounds', fontsize=20)
+    axes[0].set_ylabel('Accuracy (%)', fontsize=20)
+    axes[0].set_title('Accuracy curve', fontsize=20)
     axes[0].grid(True)
 
     axes[1].tick_params(axis='x', labelsize=14)
@@ -159,9 +204,9 @@ def generate_temp_image():
     axes[1].set_xticks(np.arange(1, len(validation_loss_data) + 1, 5))
     axes[1].set_yticks(np.arange(0, 2.5, 0.2))
     axes[1].plot(x, validation_loss_data, marker='o', linestyle='-')
-    axes[1].set_xlabel('全局聚合轮次', fontsize=20)
-    axes[1].set_ylabel('验证损失', fontsize=20)
-    axes[1].set_title('模型验证损失曲线', fontsize=20)
+    axes[1].set_xlabel('Global rounds', fontsize=20)
+    axes[1].set_ylabel('Validation loss', fontsize=20)
+    axes[1].set_title('Validation loss curve', fontsize=20)
     axes[1].grid(True)
 
     temp_dir = tempfile.mkdtemp()
@@ -182,7 +227,7 @@ def recognize():
         try:
             inference_model = load_inference_model()
             if inference_model is None:
-                return jsonify({'result': '模型文件不存在，请先训练或放置模型'})
+                return jsonify({'result': 'Model file does not exist. Train or add a model first.'})
 
             image = Image.open(PROJECT_ROOT / file_path)
             input_tensor = transform(image).unsqueeze(0)
@@ -190,23 +235,24 @@ def recognize():
                 output = inference_model(input_tensor)
                 _, predicted = torch.max(output.data, 1)
                 result = predicted.item()
-                print(f"预测结果类别索引: {result}")
+                print(f"Predicted class index: {result}")
             return jsonify({"status": "success", 'result': result})
         except Exception as exc:
             print(f"Error: {exc}")
-            return jsonify({'result': '识别失败'})
+            return jsonify({'result': 'Recognition failed'})
 
-    return jsonify({'result': '未提供文件路径'})
+    return jsonify({'result': 'File path was not provided'})
 
 
 @app.route('/recognize_img')
 def recognize_img():
     temp_dir = tempfile.mkdtemp()
     temp_output_path = os.path.join(temp_dir, 'recognized_image.jpg')
-    if not DEFAULT_MODEL_PATH.exists():
-        return jsonify({'status': 'error', 'message': '模型文件不存在，请先训练或放置模型'})
+    model_path = get_training_model_path()
+    if model_path is None:
+        return jsonify({'status': 'error', 'message': 'Model file does not exist. Train or add a model first.'})
 
-    recognizer = recog.DigitRecognizer(DEFAULT_MODEL_PATH)
+    recognizer = recog.DigitRecognizer(model_path)
     file_path = request.args.get('filepath')
     file_path = file_path.replace('\\', '/')
     file_path = os.path.join(app.root_path, *file_path.split('/'))
@@ -218,13 +264,13 @@ def recognize_img():
             json.dump(results, f, ensure_ascii=False, indent=2)
         return send_file(temp_output_path, mimetype='image/jpeg')
 
-    return jsonify({'status': 'error', 'message': '识别失败'})
+    return jsonify({'status': 'error', 'message': 'Recognition failed'})
 
 
 @app.route('/download_result')
 def download_result():
     if not RECOGNIZED_RESULT_PATH.exists():
-        return {"error": "识别结果不存在"}, 404
+        return {"error": "Recognition result does not exist."}, 404
     return send_file(RECOGNIZED_RESULT_PATH, as_attachment=True)
 
 

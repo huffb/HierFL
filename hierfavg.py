@@ -26,6 +26,15 @@ import torch.nn as nn
 
 training_state = {"progress": 0}   # 控制前端显示进度条
 
+training_state = {
+    "status": "idle",
+    "progress": 0,
+    "error": None,
+    "run_name": None,
+    "model_path": None,
+    "metrics_path": None,
+}
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
 METRICS_DIR = ARTIFACTS_DIR / "metrics"
@@ -251,6 +260,10 @@ def HierFAVG(args):
               f"_model_{args.model}iid{args.iid}edgeiid{args.edgeiid}epoch{args.num_communication}" \
               f"bs{args.batch_size}lr{args.lr}lr_decay_rate{args.lr_decay}" \
               f"lr_decay_epoch{args.lr_decay_epoch}momentum{args.momentum}"
+    training_state["status"] = "running"
+    training_state["progress"] = 0
+    training_state["error"] = None
+    training_state["run_name"] = FILEOUT
     writer = SummaryWriter(comment=FILEOUT)
     # Build dataloaders
     train_loaders, test_loaders, v_train_loader, v_test_loader = get_dataloaders(args)
@@ -338,8 +351,10 @@ def HierFAVG(args):
     ws['D1'] = 'Time';
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    metrics_path = METRICS_DIR / f"{args.dataset}_training_metrics.xlsx"
-    model_path = MODELS_DIR / "trained_model.pth"
+    metrics_path = METRICS_DIR / f"{FILEOUT}_training_metrics.xlsx"
+    model_path = MODELS_DIR / f"{FILEOUT}.pth"
+    training_state["metrics_path"] = str(metrics_path)
+    training_state["model_path"] = str(model_path)
     #Begin training
     for num_comm in tqdm(range(args.num_communication)):
         cloud.refresh_cloudserver()
@@ -418,6 +433,8 @@ def HierFAVG(args):
     # 保存训练好的模型
     torch.save(cloud.shared_state_dict, model_path)
     print(f"Model saved to {model_path}")
+    training_state["status"] = "done"
+    training_state["progress"] = 100
     # return model_path
 
 
