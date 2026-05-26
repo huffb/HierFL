@@ -29,7 +29,7 @@ class Client():
 
     def local_update(self, num_iter, device, args):
         itered_num = 0
-        loss = 0.0
+        total_loss = 0.0
         end = False
         num_clip = args.SGD_clip
         dataset_size = len(self.train_loader.dataset)
@@ -41,10 +41,11 @@ class Client():
                 inputs, labels = data
                 inputs = Variable(inputs).to(device)
                 labels = Variable(labels).to(device)
-                loss += self.model.optimize_model(input_batch=inputs,
-                                                  label_batch=labels,clip=num_clip,
-                                                  args=args,dataset_size=dataset_size
-                                                  )
+                batch_loss = self.model.optimize_model(input_batch=inputs,
+                                                       label_batch=labels,clip=num_clip,
+                                                       args=args,dataset_size=dataset_size
+                                                       )
+                total_loss += batch_loss
                 # proximal_term = 0.0
                 # for name, param in self.model.shared_layers.named_parameters():
                 #     global_param = self.global_model[name]
@@ -52,7 +53,6 @@ class Client():
                 # 总的损失为正常损失加上近端项
                 # loss += proximal_term
                 itered_num += 1
-                loss /= num_iter
                 if itered_num >= num_iter:
                     end = True
                     # print(f"Iterer number {itered_num}")
@@ -91,7 +91,7 @@ class Client():
         #     print(f"Layer Name: {name}")
         # print(self.model.shared_layers.state_dict().items())
 
-        return loss
+        return total_loss / max(itered_num, 1)
 
     def test_model(self, device):
         correct = 0.0

@@ -167,7 +167,6 @@ def initialize_edges_niid(num_edges, clients, args, client_class_dis):
     return edges, p_clients
 
 def all_clients_test(server, clients, cids, device):
-    [server.send_to_client(clients[cid]) for cid in cids]
     for cid in cids:
         server.send_to_client(clients[cid])
         # The following sentence!
@@ -199,6 +198,11 @@ def fast_all_clients_test(v_test_loader, global_nn, device):
         # print(total_loss/len(v_test_loader))
         avg_loss = total_loss/len(v_test_loader)
     return correct_all, total_all,avg_loss
+
+
+def split_clients_among_edges(num_clients, num_edges):
+    client_ids = np.arange(num_clients)
+    return [split.astype(int) for split in np.array_split(client_ids, num_edges)]
 
 def initialize_global_nn(args):
     if args.dataset == 'mnist':
@@ -232,6 +236,9 @@ def initialize_global_nn(args):
 
 def HierFAVG(args):
     #make experiments repeatable
+    if args.num_edges > args.num_clients:
+        raise ValueError("num_edges cannot be greater than num_clients")
+
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     if args.cuda:
@@ -282,8 +289,6 @@ def HierFAVG(args):
 
     # Initialize edge server and assign clients to the edge server
     edges = []
-    cids = np.arange(args.num_clients)
-    clients_per_edge = int(args.num_clients / args.num_edges)
     p_clients = [0.0] * args.num_edges
 
     if args.iid == -2:
@@ -301,10 +306,11 @@ def HierFAVG(args):
                                                      client_class_dis=client_class_dis)
     else:
         # This is randomly assign the clients to edges
-        for i in range(args.num_edges):
-            #Randomly select clients and assign them
-            selected_cids = np.random.choice(cids, clients_per_edge, replace=False)
-            cids = list (set(cids) - set(selected_cids))
+        shuffled_cids = np.random.permutation(args.num_clients)
+        edge_client_splits = split_clients_among_edges(args.num_clients, args.num_edges)
+        edge_client_splits = [shuffled_cids[split] for split in edge_client_splits]
+        for i, edge_clients in enumerate(edge_client_splits):
+            selected_cids = edge_clients.astype(int)
             edges.append(Edge(id = i,
                               cids = selected_cids,
                               shared_layers = copy.deepcopy(clients[0].model.shared_layers)))
@@ -317,8 +323,6 @@ def HierFAVG(args):
     cloud = Cloud(shared_layers=copy.deepcopy(clients[0].model.shared_layers))
     # First the clients report to the edge server their training samples
     [cloud.edge_register(edge=edge) for edge in edges]
-    p_edge = [sample / sum(cloud.sample_registration.values()) for sample in
-                list(cloud.sample_registration.values())]
     cloud.refresh_cloudserver()
 
     #New an NN model for testing error
@@ -351,7 +355,8 @@ def HierFAVG(args):
             for i,edge in enumerate(edges):
                 edge.refresh_edgeserver()
                 client_loss = 0.0
-                selected_cnum = max(int(clients_per_edge * args.frac),1)
+                edge_client_count = len(edge.cids)
+                selected_cnum = min(max(int(edge_client_count * args.frac),1), edge_client_count)
                 selected_cids = np.random.choice(edge.cids,
                                                  selected_cnum,
                                                  replace = False,
