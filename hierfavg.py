@@ -1,30 +1,25 @@
-# Flow of the algorithm
-# Client update(t_1) -> Edge Aggregate(t_2) -> Cloud Aggregate(t_3)
-import csv
+import copy
 import time
 from pathlib import Path
 
-from options import args_parser
-from tensorboardX import SummaryWriter
+import numpy as np
 import torch
+import torch.nn as nn
+from openpyxl import Workbook
+from tensorboardX import SummaryWriter
+from tqdm import tqdm
+
 from client import Client
-from edge import Edge
 from cloud import Cloud
 from datasets.get_data import get_dataloaders, show_distribution
-import copy
-import numpy as np
-from tqdm import tqdm
-from models.mnist_cnn import mnist_lenet
+from edge import Edge
 from models.cifar_cnn_3conv_layer import cifar_cnn_3conv
 from models.cifar_resnet import ResNet18
-from models.mnist_logistic import LogisticRegression
+from models.mnist_cnn import mnist_lenet
 from models.mnist_cnn_3conv import MNISTCNNWithThreeConvLayers
-import os
-from openpyxl import Workbook
-import torch.nn as nn
+from models.mnist_logistic import LogisticRegression
+from options import args_parser
 
-
-training_state = {"progress": 0}   # 控制前端显示进度条
 
 training_state = {
     "status": "idle",
@@ -42,38 +37,15 @@ MODELS_DIR = ARTIFACTS_DIR / "models"
 
 
 def get_client_class(args, clients):
-    client_class = []
-    client_class_dis = [[],[],[],[],[],[],[],[],[],[]]
+    client_class_dis = [[] for _ in range(10)]
     for client in clients:
-        train_loader = client.train_loader
-        distribution = show_distribution(train_loader, args)
+        distribution = show_distribution(client.train_loader, args)
         label = np.argmax(distribution)
-        client_class.append(label)
         client_class_dis[label].append(client.id)
     print(client_class_dis)
     return client_class_dis
 
-def get_edge_class(args, edges, clients):
-    edge_class = [[], [], [], [], []]
-    for (i,edge) in enumerate(edges):
-        for cid in edge.cids:
-            client = clients[cid]
-            train_loader = client.train_loader
-            distribution = show_distribution(train_loader, args)
-            label = np.argmax(distribution)
-            edge_class[i].append(label)
-    print(f'class distribution among edge {edge_class}')
-
 def initialize_edges_iid(num_edges, clients, args, client_class_dis):
-    """
-    This function is specially designed for partiion for 10*L users, 1-class per user, but the distribution among edges is iid,
-    10 clients per edge, each edge have 10 classes
-    :param num_edges: L
-    :param clients:
-    :param args:
-    :return:
-    """
-    #only assign first (num_edges - 1), neglect the last 1, choose the left
     edges = []
     p_clients = [0.0] * num_edges
     for eid in range(num_edges):
@@ -81,104 +53,115 @@ def initialize_edges_iid(num_edges, clients, args, client_class_dis):
             break
         assigned_clients_idxes = []
         for label in range(10):
-        #     0-9 labels in total
-            assigned_client_idx = np.random.choice(client_class_dis[label], 1, replace = False)
-            for idx in assigned_client_idx:
-                assigned_clients_idxes.append(idx)
+            assigned_client_idx = np.random.choice(client_class_dis[label], 1, replace=False)
+            assigned_clients_idxes.extend(assigned_client_idx)
             client_class_dis[label] = list(set(client_class_dis[label]) - set(assigned_client_idx))
-        edges.append(Edge(id = eid,
-                          cids=assigned_clients_idxes,
-                          shared_layers=copy.deepcopy(clients[0].model.shared_layers)))
+        edges.append(
+            Edge(
+                id=eid,
+                cids=assigned_clients_idxes,
+                shared_layers=copy.deepcopy(clients[0].model.shared_layers),
+            )
+        )
         [edges[eid].client_register(clients[client]) for client in assigned_clients_idxes]
         edges[eid].all_trainsample_num = sum(edges[eid].sample_registration.values())
-        p_clients[eid] = [sample / float(edges[eid].all_trainsample_num)
-                        for sample in list(edges[eid].sample_registration.values())]
+        p_clients[eid] = [
+            sample / float(edges[eid].all_trainsample_num)
+            for sample in list(edges[eid].sample_registration.values())
+        ]
         edges[eid].refresh_edgeserver()
-    #And the last one, eid == num_edges -1
+
     eid = num_edges - 1
     assigned_clients_idxes = []
     for label in range(10):
         if not client_class_dis[label]:
-            print("label{} is empty".format(label))
+            print(f"label{label} is empty")
         else:
-            assigned_client_idx = client_class_dis[label]
-            for idx in assigned_client_idx:
-                assigned_clients_idxes.append(idx)
+            assigned_clients_idx = client_class_dis[label]
+            assigned_clients_idxes.extend(assigned_client_idx)
             client_class_dis[label] = list(set(client_class_dis[label]) - set(assigned_client_idx))
-    edges.append(Edge(id=eid,
-                      cids=assigned_clients_idxes,
-                      shared_layers=copy.deepcopy(clients[0].model.shared_layers)))
+    edges.append(
+        Edge(
+            id=eid,
+            cids=assigned_clients_idxes,
+            shared_layers=copy.deepcopy(clients[0].model.shared_layers),
+        )
+    )
     [edges[eid].client_register(clients[client]) for client in assigned_clients_idxes]
     edges[eid].all_trainsample_num = sum(edges[eid].sample_registration.values())
-    p_clients[eid] = [sample / float(edges[eid].all_trainsample_num)
-                    for sample in list(edges[eid].sample_registration.values())]
+    p_clients[eid] = [
+        sample / float(edges[eid].all_trainsample_num)
+        for sample in list(edges[eid].sample_registration.values())
+    ]
     edges[eid].refresh_edgeserver()
     return edges, p_clients
 
+
 def initialize_edges_niid(num_edges, clients, args, client_class_dis):
-    """
-    This function is specially designed for partiion for 10*L users, 1-class per user, but the distribution among edges is iid,
-    10 clients per edge, each edge have 5 classes
-    :param num_edges: L
-    :param clients:
-    :param args:
-    :return:
-    """
-    #only assign first (num_edges - 1), neglect the last 1, choose the left
     edges = []
     p_clients = [0.0] * num_edges
-    label_ranges = [[0,1,2,3,4],[1,2,3,4,5],[5,6,7,8,9],[6,7,8,9,0]]
+    label_ranges = [[0, 1, 2, 3, 4], [1, 2, 3, 4, 5], [5, 6, 7, 8, 9], [6, 7, 8, 9, 0]]
     for eid in range(num_edges):
         if eid == num_edges - 1:
             break
         assigned_clients_idxes = []
         label_range = label_ranges[eid]
-        for i in range(2):
+        for _ in range(2):
             for label in label_range:
-                #     5 labels in total
                 if len(client_class_dis[label]) > 0:
                     assigned_client_idx = np.random.choice(client_class_dis[label], 1, replace=False)
                     client_class_dis[label] = list(set(client_class_dis[label]) - set(assigned_client_idx))
                 else:
                     label_backup = 2
-                    assigned_client_idx = np.random.choice(client_class_dis[label_backup],1, replace=False)
-                    client_class_dis[label_backup] = list(set(client_class_dis[label_backup]) - set(assigned_client_idx))
-                for idx in assigned_client_idx:
-                    assigned_clients_idxes.append(idx)
-        edges.append(Edge(id = eid,
-                          cids=assigned_clients_idxes,
-                          shared_layers=copy.deepcopy(clients[0].model.shared_layers)))
+                    assigned_client_idx = np.random.choice(client_class_dis[label_backup], 1, replace=False)
+                    client_class_dis[label_backup] = list(
+                        set(client_class_dis[label_backup]) - set(assigned_client_idx)
+                    )
+                assigned_clients_idxes.extend(assigned_client_idx)
+        edges.append(
+            Edge(
+                id=eid,
+                cids=assigned_clients_idxes,
+                shared_layers=copy.deepcopy(clients[0].model.shared_layers),
+            )
+        )
         [edges[eid].client_register(clients[client]) for client in assigned_clients_idxes]
         edges[eid].all_trainsample_num = sum(edges[eid].sample_registration.values())
-        p_clients[eid] = [sample / float(edges[eid].all_trainsample_num)
-                        for sample in list(edges[eid].sample_registration.values())]
+        p_clients[eid] = [
+            sample / float(edges[eid].all_trainsample_num)
+            for sample in list(edges[eid].sample_registration.values())
+        ]
         edges[eid].refresh_edgeserver()
-    #And the last one, eid == num_edges -1
-    #Find the last available labels
+
     eid = num_edges - 1
     assigned_clients_idxes = []
     for label in range(10):
         if not client_class_dis[label]:
-            print("label{} is empty".format(label))
+            print(f"label{label} is empty")
         else:
             assigned_client_idx = client_class_dis[label]
-            for idx in assigned_client_idx:
-                assigned_clients_idxes.append(idx)
+            assigned_clients_idxes.extend(assigned_client_idx)
             client_class_dis[label] = list(set(client_class_dis[label]) - set(assigned_client_idx))
-    edges.append(Edge(id=eid,
-                      cids=assigned_clients_idxes,
-                      shared_layers=copy.deepcopy(clients[0].model.shared_layers)))
+    edges.append(
+        Edge(
+            id=eid,
+            cids=assigned_clients_idxes,
+            shared_layers=copy.deepcopy(clients[0].model.shared_layers),
+        )
+    )
     [edges[eid].client_register(clients[client]) for client in assigned_clients_idxes]
     edges[eid].all_trainsample_num = sum(edges[eid].sample_registration.values())
-    p_clients[eid] = [sample / float(edges[eid].all_trainsample_num)
-                    for sample in list(edges[eid].sample_registration.values())]
+    p_clients[eid] = [
+        sample / float(edges[eid].all_trainsample_num)
+        for sample in list(edges[eid].sample_registration.values())
+    ]
     edges[eid].refresh_edgeserver()
     return edges, p_clients
+
 
 def all_clients_test(server, clients, cids, device):
     for cid in cids:
         server.send_to_client(clients[cid])
-        # The following sentence!
         clients[cid].sync_with_edgeserver()
     correct_edge = 0.0
     total_edge = 0.0
@@ -187,6 +170,7 @@ def all_clients_test(server, clients, cids, device):
         correct_edge += correct
         total_edge += total
     return correct_edge, total_edge
+
 
 def fast_all_clients_test(v_test_loader, global_nn, device):
     correct_all = 0.0
@@ -202,49 +186,46 @@ def fast_all_clients_test(v_test_loader, global_nn, device):
             _, predicts = torch.max(outputs, 1)
             total_all += labels.size(0)
             correct_all += (predicts == labels).sum().item()
-            loss = loss_function(outputs, labels)
-            total_loss += loss.item()
-        # print(total_loss/len(v_test_loader))
-        avg_loss = total_loss/len(v_test_loader)
-    return correct_all, total_all,avg_loss
+            total_loss += loss_function(outputs, labels).item()
+        avg_loss = total_loss / len(v_test_loader)
+    return correct_all, total_all, avg_loss
 
 
 def split_clients_among_edges(num_clients, num_edges):
     client_ids = np.arange(num_clients)
     return [split.astype(int) for split in np.array_split(client_ids, num_edges)]
 
+
 def initialize_global_nn(args):
     if args.dataset == 'mnist':
         if args.model == 'lenet':
-            global_nn = mnist_lenet(input_channels=1, output_channels=10)
-        elif args.model == 'logistic':
-            global_nn = LogisticRegression(input_dim=1, output_dim=10)
-        elif args.model == 'cnn_3':
-            global_nn = MNISTCNNWithThreeConvLayers(input_channels=1, output_channels=10)
-        else: raise ValueError(f"Model{args.model} not implemented for mnist")
-    elif args.dataset == 'fmnist':
+            return mnist_lenet(input_channels=1, output_channels=10)
+        if args.model == 'logistic':
+            return LogisticRegression(input_dim=1, output_dim=10)
+        if args.model == 'cnn_3':
+            return MNISTCNNWithThreeConvLayers(input_channels=1, output_channels=10)
+        raise ValueError(f"Model{args.model} not implemented for mnist")
+
+    if args.dataset == 'fmnist':
         if args.model == 'lenet':
-            global_nn = mnist_lenet(input_channels=1, output_channels=10)
-        elif args.model == 'logistic':
-            global_nn = LogisticRegression(input_dim=1, output_dim=10)
-        elif args.model == 'cnn_3':
-            global_nn = MNISTCNNWithThreeConvLayers(input_channels=1, output_channels=10)
-        else:
-            raise ValueError(f"Model{args.model} not implemented for mnist")
-    elif args.dataset == 'cifar10':
-        # if args.model == 'cnn_complex':
+            return mnist_lenet(input_channels=1, output_channels=10)
+        if args.model == 'logistic':
+            return LogisticRegression(input_dim=1, output_dim=10)
+        if args.model == 'cnn_3':
+            return MNISTCNNWithThreeConvLayers(input_channels=1, output_channels=10)
+        raise ValueError(f"Model{args.model} not implemented for mnist")
+
+    if args.dataset == 'cifar10':
         if args.model == 'cnn_complex':
-            global_nn = cifar_cnn_3conv(input_channels=3, output_channels=10)
-        # elif args.model == 'resnet18':
-        elif args.model == 'resnet18':
-            global_nn = ResNet18()
-        else: raise ValueError(f"Model{args.model} not implemented for cifar")
-    else: raise ValueError(f"Dataset {args.dataset} Not implemented")
-    return global_nn
+            return cifar_cnn_3conv(input_channels=3, output_channels=10)
+        if args.model == 'resnet18':
+            return ResNet18()
+        raise ValueError(f"Model{args.model} not implemented for cifar")
+
+    raise ValueError(f"Dataset {args.dataset} Not implemented")
 
 
 def HierFAVG(args):
-    #make experiments repeatable
     if args.num_edges > args.num_clients:
         raise ValueError("num_edges cannot be greater than num_clients")
 
@@ -255,90 +236,84 @@ def HierFAVG(args):
         cuda_to_use = torch.device(f'cuda:{args.gpu}')
     device = cuda_to_use if torch.cuda.is_available() else "cpu"
     print(f'Using device {device}')
-    FILEOUT = f"{args.dataset}_clients{args.num_clients}_edges{args.num_edges}_" \
-              f"t1-{args.num_local_update}_t2-{args.num_edge_aggregation}" \
-              f"_model_{args.model}iid{args.iid}edgeiid{args.edgeiid}epoch{args.num_communication}" \
-              f"bs{args.batch_size}lr{args.lr}lr_decay_rate{args.lr_decay}" \
-              f"lr_decay_epoch{args.lr_decay_epoch}momentum{args.momentum}"
+    fileout = (
+        f"{args.dataset}_clients{args.num_clients}_edges{args.num_edges}_"
+        f"t1-{args.num_local_update}_t2-{args.num_edge_aggregation}"
+        f"_model_{args.model}iid{args.iid}edgeiid{args.edgeiid}epoch{args.num_communication}"
+        f"bs{args.batch_size}lr{args.lr}lr_decay_rate{args.lr_decay}"
+        f"lr_decay_epoch{args.lr_decay_epoch}momentum{args.momentum}"
+    )
     training_state["status"] = "running"
     training_state["progress"] = 0
     training_state["error"] = None
-    training_state["run_name"] = FILEOUT
-    writer = SummaryWriter(comment=FILEOUT)
-    # Build dataloaders
-    train_loaders, test_loaders, v_train_loader, v_test_loader = get_dataloaders(args)
+    training_state["run_name"] = fileout
+    writer = SummaryWriter(comment=fileout)
+
+    train_loaders, test_loaders, _, v_test_loader = get_dataloaders(args)
     if args.show_dis:
         for i in range(args.num_clients):
-            train_loader = train_loaders[i]
-            print(len(train_loader.dataset))
-            distribution = show_distribution(train_loader, args)
-            print("train dataloader {} distribution".format(i))
+            distribution = show_distribution(train_loaders[i], args)
+            print(len(train_loaders[i].dataset))
+            print(f"train dataloader {i} distribution")
             print(distribution)
 
         for i in range(args.num_clients):
-            test_loader = test_loaders[i]
-            test_size = len(test_loaders[i].dataset)
-            print(len(test_loader.dataset))
-            distribution = show_distribution(test_loader, args)
-            print("test dataloader {} distribution".format(i))
-            print(f"test dataloader size {test_size}")
+            distribution = show_distribution(test_loaders[i], args)
+            print(len(test_loaders[i].dataset))
+            print(f"test dataloader {i} distribution")
+            print(f"test dataloader size {len(test_loaders[i].dataset)}")
             print(distribution)
-    # initialize clients and server
-    clients = []
-    for i in range(args.num_clients):
-        clients.append(Client(id=i,
-                              train_loader=train_loaders[i],
-                              test_loader=test_loaders[i],
-                              args=args,
-                              device=device)
-                       )
 
-    initilize_parameters = list(clients[0].model.shared_layers.parameters())
-    nc = len(initilize_parameters)
+    clients = [
+        Client(
+            id=i,
+            train_loader=train_loaders[i],
+            test_loader=test_loaders[i],
+            args=args,
+            device=device,
+        )
+        for i in range(args.num_clients)
+    ]
+
+    initialize_parameters = list(clients[0].model.shared_layers.parameters())
     for client in clients:
         user_parameters = list(client.model.shared_layers.parameters())
-        for i in range(nc):
-            user_parameters[i].data[:] = initilize_parameters[i].data[:]
+        for i, param in enumerate(initialize_parameters):
+            user_parameters[i].data[:] = param.data[:]
 
-    # Initialize edge server and assign clients to the edge server
     edges = []
     p_clients = [0.0] * args.num_edges
-
     if args.iid == -2:
+        client_class_dis = get_client_class(args, clients)
         if args.edgeiid == 1:
-            client_class_dis = get_client_class(args, clients)
-            edges, p_clients = initialize_edges_iid(num_edges=args.num_edges,
-                                                    clients=clients,
-                                                    args=args,
-                                                    client_class_dis=client_class_dis)
+            edges, p_clients = initialize_edges_iid(args.num_edges, clients, args, client_class_dis)
         elif args.edgeiid == 0:
-            client_class_dis = get_client_class(args, clients)
-            edges, p_clients = initialize_edges_niid(num_edges=args.num_edges,
-                                                     clients=clients,
-                                                     args=args,
-                                                     client_class_dis=client_class_dis)
+            edges, p_clients = initialize_edges_niid(args.num_edges, clients, args, client_class_dis)
     else:
-        # This is randomly assign the clients to edges
         shuffled_cids = np.random.permutation(args.num_clients)
         edge_client_splits = split_clients_among_edges(args.num_clients, args.num_edges)
         edge_client_splits = [shuffled_cids[split] for split in edge_client_splits]
         for i, edge_clients in enumerate(edge_client_splits):
             selected_cids = edge_clients.astype(int)
-            edges.append(Edge(id = i,
-                              cids = selected_cids,
-                              shared_layers = copy.deepcopy(clients[0].model.shared_layers)))
+            edges.append(
+                Edge(
+                    id=i,
+                    cids=selected_cids,
+                    shared_layers=copy.deepcopy(clients[0].model.shared_layers),
+                )
+            )
             [edges[i].client_register(clients[cid]) for cid in selected_cids]
             edges[i].all_trainsample_num = sum(edges[i].sample_registration.values())
-            p_clients[i] = [sample / float(edges[i].all_trainsample_num) for sample in
-                    list(edges[i].sample_registration.values())]
+            p_clients[i] = [
+                sample / float(edges[i].all_trainsample_num)
+                for sample in list(edges[i].sample_registration.values())
+            ]
             edges[i].refresh_edgeserver()
-    # Initialize cloud server
+
     cloud = Cloud(shared_layers=copy.deepcopy(clients[0].model.shared_layers))
-    # First the clients report to the edge server their training samples
     [cloud.edge_register(edge=edge) for edge in edges]
     cloud.refresh_cloudserver()
 
-    #New an NN model for testing error
     global_nn = initialize_global_nn(args)
     if args.cuda:
         global_nn = global_nn.cuda(device)
@@ -348,94 +323,89 @@ def HierFAVG(args):
     ws['A1'] = 'rounds'
     ws['B1'] = 'Acc'
     ws['C1'] = 'Loss'
-    ws['D1'] = 'Time';
+    ws['D1'] = 'Time'
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    metrics_path = METRICS_DIR / f"{FILEOUT}_training_metrics.xlsx"
-    model_path = MODELS_DIR / f"{FILEOUT}.pth"
+    metrics_path = METRICS_DIR / f"{fileout}_training_metrics.xlsx"
+    model_path = MODELS_DIR / f"{fileout}.pth"
     training_state["metrics_path"] = str(metrics_path)
     training_state["model_path"] = str(model_path)
-    #Begin training
+
     for num_comm in tqdm(range(args.num_communication)):
         cloud.refresh_cloudserver()
         [cloud.edge_register(edge=edge) for edge in edges]
-        start_time = time.time();
+        start_time = time.time()
         for num_edgeagg in range(args.num_edge_aggregation):
-            edge_loss = [0.0]* args.num_edges
-            edge_sample = [0]* args.num_edges
+            edge_loss = [0.0] * args.num_edges
+            edge_sample = [0] * args.num_edges
             correct_all = 0.0
             total_all = 0.0
-            # no edge selection included here
-            # for each edge, iterate
-            for i,edge in enumerate(edges):
+            for i, edge in enumerate(edges):
                 edge.refresh_edgeserver()
                 client_loss = 0.0
                 edge_client_count = len(edge.cids)
-                selected_cnum = min(max(int(edge_client_count * args.frac),1), edge_client_count)
-                selected_cids = np.random.choice(edge.cids,
-                                                 selected_cnum,
-                                                 replace = False,
-                                                 p = p_clients[i])
+                selected_cnum = min(max(int(edge_client_count * args.frac), 1), edge_client_count)
+                selected_cids = np.random.choice(
+                    edge.cids,
+                    selected_cnum,
+                    replace=False,
+                    p=p_clients[i],
+                )
                 for selected_cid in selected_cids:
                     edge.client_register(clients[selected_cid])
                 for selected_cid in selected_cids:
                     edge.send_to_client(clients[selected_cid])
                     clients[selected_cid].sync_with_edgeserver()
-                    client_loss += clients[selected_cid].local_update(num_iter=args.num_local_update,
-                                                                      device = device,args=args)
+                    client_loss += clients[selected_cid].local_update(
+                        num_iter=args.num_local_update,
+                        device=device,
+                        args=args,
+                    )
                     clients[selected_cid].send_to_edgeserver(edge)
                 edge_loss[i] = client_loss
                 edge_sample[i] = sum(edge.sample_registration.values())
-                # if args.client_add_noise == 1:
-                #     edge.addnoise(args) 5.22版本
                 edge.aggregate(args)
                 correct, total = all_clients_test(edge, clients, edge.cids, device)
                 correct_all += correct
                 total_all += total
-            # end interation in edges
-            all_loss = sum([e_loss * e_sample for e_loss, e_sample in zip(edge_loss, edge_sample)]) / sum(edge_sample)
-            avg_acc = correct_all / total_all
-            # avg_loss = all_loss/total_all
-            # ws.append([num_comm,avg_loss,avg_acc])
-            writer.add_scalar(f'Partial_Avg_Train_loss',
-                          all_loss,
-                          num_comm* args.num_edge_aggregation + num_edgeagg +1)
-            writer.add_scalar(f'All_Avg_Test_Acc_edgeagg',
-                          avg_acc,
-                          num_comm * args.num_edge_aggregation + num_edgeagg + 1)
 
-        # Now begin the cloud aggregation
+            all_loss = sum(
+                e_loss * e_sample for e_loss, e_sample in zip(edge_loss, edge_sample)
+            ) / sum(edge_sample)
+            avg_acc = correct_all / total_all
+            writer.add_scalar(
+                'Partial_Avg_Train_loss',
+                all_loss,
+                num_comm * args.num_edge_aggregation + num_edgeagg + 1,
+            )
+            writer.add_scalar(
+                'All_Avg_Test_Acc_edgeagg',
+                avg_acc,
+                num_comm * args.num_edge_aggregation + num_edgeagg + 1,
+            )
+
         for edge in edges:
-            edge.send_to_cloudserver(cloud,args=args)
-        # if args.edge_add_noise == 1:
-        #     cloud.addnoise(args)
+            edge.send_to_cloudserver(cloud, args=args)
         cloud.aggregate(args)
         for edge in edges:
             cloud.send_to_edge(edge)
         end_time = time.time()
-        t = end_time - start_time
-        global_nn.load_state_dict(state_dict = copy.deepcopy(cloud.shared_state_dict))
+        global_nn.load_state_dict(state_dict=copy.deepcopy(cloud.shared_state_dict))
         global_nn.train(False)
-        correct_all_v, total_all_v ,avg_loss_v= fast_all_clients_test(v_test_loader, global_nn, device)
+        correct_all_v, total_all_v, avg_loss_v = fast_all_clients_test(v_test_loader, global_nn, device)
         avg_acc_v = correct_all_v / total_all_v
-        ws.append([num_comm+1,avg_acc_v,avg_loss_v,t])
-        writer.add_scalar(f'All_Avg_Test_Acc_cloudagg_Vtest',
-                          avg_acc_v,
-                          num_comm + 1)
-        progress_percent = int((num_comm + 1) / args.num_communication * 100)
-        training_state["progress"] = progress_percent
-        print(progress_percent)
+        ws.append([num_comm + 1, avg_acc_v, avg_loss_v, end_time - start_time])
+        writer.add_scalar('All_Avg_Test_Acc_cloudagg_Vtest', avg_acc_v, num_comm + 1)
+        training_state["progress"] = int((num_comm + 1) / args.num_communication * 100)
+        print(training_state["progress"])
 
-    # name = '120_10_3_nodp.xlsx'
     wb.save(metrics_path)
     writer.close()
     print(f"The final virtual acc is {avg_acc_v}")
-    # 保存训练好的模型
     torch.save(cloud.shared_state_dict, model_path)
     print(f"Model saved to {model_path}")
     training_state["status"] = "done"
     training_state["progress"] = 100
-    # return model_path
 
 
 def main():

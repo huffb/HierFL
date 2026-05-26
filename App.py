@@ -42,11 +42,6 @@ transform = transforms.Compose(
     ]
 )
 
-users = {
-    'admin': 'password'
-}
-
-
 def get_training_model_path():
     model_path = training_state.get("model_path")
     if model_path:
