@@ -14,22 +14,23 @@ from flask_bootstrap import Bootstrap
 from matplotlib import pyplot as plt
 
 import recog
+from config import WEB_CONFIG
 from frontend_args import override_args
 from hierfavg import HierFAVG, training_state
 from models.mnist_cnn import mnist_lenet
 
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'
+app.secret_key = WEB_CONFIG.secret_key
 Bootstrap(app)
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
-MODELS_DIR = ARTIFACTS_DIR / "models"
-METRICS_DIR = ARTIFACTS_DIR / "metrics"
-RESULTS_DIR = ARTIFACTS_DIR / "results"
-UPLOADS_DIR = PROJECT_ROOT / "uploads"
-RECOGNIZED_RESULT_PATH = RESULTS_DIR / "recognized_result.json"
+PROJECT_ROOT = WEB_CONFIG.project_root
+ARTIFACTS_DIR = WEB_CONFIG.artifacts_dir
+MODELS_DIR = WEB_CONFIG.models_dir
+METRICS_DIR = WEB_CONFIG.metrics_dir
+RESULTS_DIR = WEB_CONFIG.results_dir
+UPLOADS_DIR = WEB_CONFIG.uploads_dir
+RECOGNIZED_RESULT_PATH = WEB_CONFIG.recognized_result_path
 
 device = torch.device('cpu')
 
@@ -270,4 +271,4 @@ def download_result():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host=WEB_CONFIG.host, port=WEB_CONFIG.port, debug=WEB_CONFIG.debug)

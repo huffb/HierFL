@@ -1,0 +1,11 @@
+Flask
+Flask-Bootstrap
+matplotlib
+numpy
+openpyxl
+pandas
+Pillow
+tensorboardX
+torch
+torchvision
+tqdm

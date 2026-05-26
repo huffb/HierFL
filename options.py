@@ -1,252 +1,259 @@
 import argparse
+
 import torch
 
-def args_parser():
-    parser = argparse.ArgumentParser()
-    # dataset and model
+
+def add_dataset_args(parser):
     parser.add_argument(
         '--dataset',
-        type = str,
-        default = 'mnist',
-        # default='mnist',
-        # default='mnist',
-        help = 'name of the dataset: mnist, cifar10,fmnist'
+        type=str,
+        default='mnist',
+        help='Dataset name: mnist, fmnist, cifar10.',
     )
     parser.add_argument(
         '--model',
-        type = str,
-        # default = 'cnn',4.22
-        default = 'lenet',
-        help='name of model. mnist: logistic, lenet,cnn_3; cifar10: resnet18, cnn_complex'
+        type=str,
+        default='lenet',
+        help='Model name. mnist/fmnist: logistic, lenet, cnn_3; cifar10: resnet18, cnn_complex.',
     )
     parser.add_argument(
         '--input_channels',
-        type = int,
-        default = 1,
-        help = 'input channels. mnist:1, cifar10 :3'
+        type=int,
+        default=1,
+        help='Input channels. mnist/fmnist: 1, cifar10: 3.',
     )
     parser.add_argument(
         '--output_channels',
-        type = int,
-        default = 10,
-        help = 'output channels'
-    )
-    #nn training hyper parameter
-    parser.add_argument(
-        '--batch_size',
-        type = int,
-        default = 20,
-        help = 'batch size when trained on client'
-        #B
-    )
-    parser.add_argument(
-        '--num_communication',#client-edge-cloud communication times.
-        type = int,
-        default=10,
-        help = 'number of communication rounds with the cloud server'
-
-    )
-    parser.add_argument(
-        '--num_local_update',#how many times local updata then communicate with edge
-        type=int,
-        default=1,
-        help='number of local update (tau_1)'
-
-    )
-    parser.add_argument(
-        '--num_edge_aggregation',  #
-        type=int,
-        default=1,
-        help='number of edge aggregation (tau_2)'
-
-    )
-    # setting for federeated learning  及仅仅修改这两个没有什么区别啊
-    parser.add_argument(
-        '--iid',
-        type=int,
-        default=-2,
-        help='distribution of the data, 1,0,-1, -2(one-class)'
-    )
-    parser.add_argument(
-        '--edgeiid',
-        type=int,
-        default=0,
-        help='distribution of the data under edges, 1 (edgeiid),0 (edgeniid) (used only when iid = -2)'
-    )
-    parser.add_argument(
-        '--classes_per_client',
-        type=int,
-        default=5,
-        # 原本为2 修改这个也没啥区别 人工n-idd有点失败
-        help='under artificial non-iid distribution, the classes per client'
-    )
-    parser.add_argument(
-        '--avg',#聚合策略
-        type=int,
-        default=2,
-        help='favg:0, simavg:1,lwavg:2'
-    )
-    parser.add_argument(
-        '--num_clients',#客户端数量
         type=int,
         default=10,
-        help='number of all available clients'
-    )
-    parser.add_argument(
-        '--num_edges',#边缘服务器数量
-        type=int,
-        default=1,
-        help='number of edges'
-    )
-    parser.add_argument(
-        '--lr',#学习率
-        type = float,
-        default = 0.1,
-        help = 'learning rate of the SGD when trained on client'
-    )
-    parser.add_argument(
-        '--lr_decay',
-        type = float,
-        default= '0.995',
-        help = 'lr decay rate'
-    )
-    parser.add_argument(
-        '--lr_decay_epoch',
-        type = int,
-        default=1,
-        help= 'lr decay epoch'
-    )
-    parser.add_argument(
-        '--momentum',
-        type = float,
-        default = 0.95,
-        help = 'SGD momentum'
-    )
-    parser.add_argument(
-        '--weight_decay',
-        type = float,
-        default = 0,
-        help= 'The weight decay rate'
-    )
-    parser.add_argument(
-        '--verbose',
-        type = int,
-        default = 0,
-        help = 'verbose for print progress bar'
-    )
-
-    # 会有影响 但不成正比。。。。
-    parser.add_argument(
-        '--frac',
-        type = float,
-        default = 1,
-        help = 'fraction of participated clients'
-    )
-
-    parser.add_argument(
-        '--seed',
-        type = int,
-        default = 1,
-        help = 'random seed (defaul: 1)'
+        help='Number of output classes.',
     )
     parser.add_argument(
         '--dataset_root',
-        type = str,
-        default = 'data',
-        help = 'dataset root folder'
+        type=str,
+        default='data',
+        help='Dataset root folder.',
     )
     parser.add_argument(
         '--show_dis',
-        type= int,
-        default= 0,
-        help='whether to show distribution'
+        type=int,
+        default=0,
+        help='Whether to print client distribution statistics.',
     )
 
-    parser.add_argument(
-        '--gpu',
-        type = int,
-        default=0,
-        help = 'GPU to be selected, 0, 1, 2, 3'
-    )
 
+def add_training_args(parser):
     parser.add_argument(
-        '--mtl_model',
-        default=0,
-        type = int
+        '--batch_size',
+        type=int,
+        default=20,
+        help='Client-side batch size.',
     )
     parser.add_argument(
-        '--global_model',
+        '--lr',
+        type=float,
+        default=0.1,
+        help='Learning rate of client SGD.',
+    )
+    parser.add_argument(
+        '--lr_decay',
+        type=float,
+        default=0.995,
+        help='Exponential learning-rate decay factor.',
+    )
+    parser.add_argument(
+        '--lr_decay_epoch',
+        type=int,
         default=1,
-        type=int
+        help='Apply learning-rate decay every N epochs.',
     )
     parser.add_argument(
-        '--local_model',
+        '--momentum',
+        type=float,
+        default=0.95,
+        help='SGD momentum.',
+    )
+    parser.add_argument(
+        '--weight_decay',
+        type=float,
         default=0,
-        type=int
-    )
-    parser.add_argument(
-        '--client_add_noise',#差分隐私噪声
-        type=int,
-        default=0,
-        help='Add dp noise: 1 to add noise, 0 to not add noise.'
-    )
-    parser.add_argument(
-        '--client_sepsilon',
-        type=float,
-        default=3,
-        help='DP epsilon for client shared/conv layers.'
-    )
-    parser.add_argument(
-        '--client_depsilon', #客户端深层隐私预算
-        type=float,
-        default=5,
-        help='DP epsilon for client dense/private layers.'
-    )
-    # 添加高斯噪声的标准差参数，默认1.0
-    parser.add_argument(
-        '--client_delta',
-        type=float,
-        default=1e-9,
-        help='DP delta for client-side Gaussian noise.'
-    )
-    parser.add_argument(
-        '--edge_add_noise',#边缘噪声添加选择
-        type=int,
-        default=0,
-        help='Add dp noise: 1 to add noise, 0 to not add noise.'
-    )
-    parser.add_argument(
-        '--edge_sepsilon',
-        type=float,
-        default=0.01,
-        help='DP epsilon for edge shared/conv layers.'
-    )
-    parser.add_argument(
-        '--edge_depsilon',
-        type=float,
-        default=0.05,
-        help='DP epsilon for edge dense/private layers.'
-    )
-    # 添加高斯噪声的标准差参数，默认为1.0
-    parser.add_argument(
-        '--edge_delta',
-        type=float,
-        default=1e-6,
-        help='DP delta for edge-side Gaussian noise.'
+        help='Weight decay coefficient.',
     )
     parser.add_argument(
         '--SGD_clip',
         type=float,
         default=10,
-        help='SGD clip.'
+        help='Gradient clipping norm for local SGD.',
+    )
+    parser.add_argument(
+        '--verbose',
+        type=int,
+        default=0,
+        help='Verbose mode for progress output.',
+    )
+
+
+def add_federated_args(parser):
+    parser.add_argument(
+        '--num_communication',
+        type=int,
+        default=10,
+        help='Number of cloud communication rounds.',
+    )
+    parser.add_argument(
+        '--num_local_update',
+        type=int,
+        default=1,
+        help='Number of client local updates (tau_1).',
+    )
+    parser.add_argument(
+        '--num_edge_aggregation',
+        type=int,
+        default=1,
+        help='Number of edge aggregations before cloud aggregation (tau_2).',
+    )
+    parser.add_argument(
+        '--iid',
+        type=int,
+        default=-2,
+        help='Data distribution mode: 1, 0, -1, -2.',
+    )
+    parser.add_argument(
+        '--edgeiid',
+        type=int,
+        default=0,
+        help='Edge distribution mode when iid=-2: 1 edge-iid, 0 edge-non-iid.',
+    )
+    parser.add_argument(
+        '--classes_per_client',
+        type=int,
+        default=5,
+        help='Classes per client under artificial non-iid partitioning.',
+    )
+    parser.add_argument(
+        '--avg',
+        type=int,
+        default=2,
+        help='Aggregation strategy: 0=favg, 1=simavg, 2=lwavg.',
+    )
+    parser.add_argument(
+        '--num_clients',
+        type=int,
+        default=10,
+        help='Total number of clients.',
+    )
+    parser.add_argument(
+        '--num_edges',
+        type=int,
+        default=1,
+        help='Total number of edge servers.',
+    )
+    parser.add_argument(
+        '--frac',
+        type=float,
+        default=1,
+        help='Fraction of clients participating per round.',
+    )
+    parser.add_argument(
+        '--seed',
+        type=int,
+        default=1,
+        help='Random seed.',
+    )
+    parser.add_argument(
+        '--gpu',
+        type=int,
+        default=0,
+        help='GPU index to use when CUDA is available.',
+    )
+    parser.add_argument(
+        '--mtl_model',
+        type=int,
+        default=0,
+        help='Use multi-task model layout.',
+    )
+    parser.add_argument(
+        '--global_model',
+        type=int,
+        default=1,
+        help='Use the same global/shared model for all clients.',
+    )
+    parser.add_argument(
+        '--local_model',
+        type=int,
+        default=0,
+        help='Reserved local-model flag.',
+    )
+
+
+def add_privacy_args(parser):
+    parser.add_argument(
+        '--client_add_noise',
+        type=int,
+        default=0,
+        help='Client-side DP noise switch: 1 enable, 0 disable.',
+    )
+    parser.add_argument(
+        '--client_sepsilon',
+        type=float,
+        default=3,
+        help='DP epsilon for client shared/conv layers.',
+    )
+    parser.add_argument(
+        '--client_depsilon',
+        type=float,
+        default=5,
+        help='DP epsilon for client dense/private layers.',
+    )
+    parser.add_argument(
+        '--client_delta',
+        type=float,
+        default=1e-9,
+        help='DP delta for client-side Gaussian noise.',
+    )
+    parser.add_argument(
+        '--edge_add_noise',
+        type=int,
+        default=0,
+        help='Edge-side DP noise switch: 1 enable, 0 disable.',
+    )
+    parser.add_argument(
+        '--edge_sepsilon',
+        type=float,
+        default=0.01,
+        help='DP epsilon for edge shared/conv layers.',
+    )
+    parser.add_argument(
+        '--edge_depsilon',
+        type=float,
+        default=0.05,
+        help='DP epsilon for edge dense/private layers.',
+    )
+    parser.add_argument(
+        '--edge_delta',
+        type=float,
+        default=1e-6,
+        help='DP delta for edge-side Gaussian noise.',
     )
     parser.add_argument(
         '--DP_SDG',
         type=int,
         default=0,
-        help='if DP_SDG:0,1'
+        help='Enable DP-SGD on clients: 1 enable, 0 disable.',
     )
-    args = parser.parse_args()
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description='Hierarchical federated learning training options.')
+    add_dataset_args(parser)
+    add_training_args(parser)
+    add_federated_args(parser)
+    add_privacy_args(parser)
+    return parser
+
+
+def args_parser():
+    args = build_parser().parse_args()
     args.cuda = torch.cuda.is_available()
     args.client_shared_epsilon = args.client_sepsilon
     args.client_private_epsilon = args.client_depsilon
