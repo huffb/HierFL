@@ -2,6 +2,7 @@
 # Client update(t_1) -> Edge Aggregate(t_2) -> Cloud Aggregate(t_3)
 import csv
 import time
+from pathlib import Path
 
 from options import args_parser
 from tensorboardX import SummaryWriter
@@ -24,6 +25,12 @@ import torch.nn as nn
 
 
 training_state = {"progress": 0}   # 控制前端显示进度条
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
+METRICS_DIR = ARTIFACTS_DIR / "metrics"
+MODELS_DIR = ARTIFACTS_DIR / "models"
+
 
 def get_client_class(args, clients):
     client_class = []
@@ -325,6 +332,10 @@ def HierFAVG(args):
     ws['B1'] = 'Acc'
     ws['C1'] = 'Loss'
     ws['D1'] = 'Time';
+    METRICS_DIR.mkdir(parents=True, exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    metrics_path = METRICS_DIR / f"{args.dataset}_training_metrics.xlsx"
+    model_path = MODELS_DIR / "trained_model.pth"
     #Begin training
     for num_comm in tqdm(range(args.num_communication)):
         cloud.refresh_cloudserver()
@@ -396,11 +407,10 @@ def HierFAVG(args):
         print(progress_percent)
 
     # name = '120_10_3_nodp.xlsx'
-    wb.save('D:/work/hfl/expirentment/DP/fmnist.xlsx')
+    wb.save(metrics_path)
     writer.close()
     print(f"The final virtual acc is {avg_acc_v}")
     # 保存训练好的模型
-    model_path = "D:/work/hfl/expirentment/trained_model.pth"
     torch.save(cloud.shared_state_dict, model_path)
     print(f"Model saved to {model_path}")
     # return model_path
